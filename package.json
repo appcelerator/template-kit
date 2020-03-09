@@ -1,0 +1,50 @@
+{
+  "name": "template-kit",
+  "version": "1.0.0",
+  "description": "Project template toolkit",
+  "main": "./dist/index.js",
+  "author": "Axway, Inc. <npmjs@appcelerator.com>",
+  "maintainers": [
+    "Chris Barber <cbarber@axway.com>"
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "template",
+    "generator",
+    "project"
+  ],
+  "scripts": {
+    "build": "gulp build",
+    "coverage": "gulp coverage",
+    "docs": "gulp docs",
+    "prepare": "gulp build",
+    "test": "gulp test"
+  },
+  "dependencies": {
+    "appcd-fs": "^1.1.10",
+    "appcd-path": "^1.1.10",
+    "appcd-subprocess": "^3.0.2",
+    "fs-extra": "^8.1.0",
+    "global-modules": "^2.0.0",
+    "got": "^10.6.0",
+    "hook-emitter": "^4.0.2",
+    "hosted-git-info": "^3.0.4",
+    "inly": "^4.0.5",
+    "pacote": "^11.1.0",
+    "snooplogg": "^2.3.3",
+    "source-map-support": "^0.5.16",
+    "tmp": "^0.1.0"
+  },
+  "devDependencies": {
+    "appcd-gulp": "^2.4.0"
+  },
+  "homepage": "https://github.com/appcelerator/template-kit",
+  "bugs": "https://github.com/appcelerator/template-kit/issues",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/appcelerator/template-kit.git"
+  },
+  "engines": {
+    "node": ">=10.2.0"
+  }
+}

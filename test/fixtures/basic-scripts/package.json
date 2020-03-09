@@ -1,0 +1,10 @@
+{
+	"name": "basic-template-with-scripts",
+	"version": "1.0.0",
+	"dependencies": {
+		"fs-extra": "*"
+	},
+	"scripts": {
+		"install": "echo 'Hi from the basic template npm install script'"
+	}
+}
