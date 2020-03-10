@@ -23,8 +23,10 @@ const { highlight } = snooplogg.styles;
 
 const filenameRegExp = /[^\\/]+(\.zip|\.tgz|\.tbz2|\.tar\.gz|\.tar\.bz2|(?<!\.tar)\.gz|(?<!\.tar)\.bz2)$/;
 
-class API {
+class API extends HookEmitter {
 	constructor(state) {
+		super();
+
 		try {
 			this.metadata = fs.readJsonSync(path.join(state.src, 'package.json'));
 		} catch (e) {
@@ -123,9 +125,12 @@ export default class TemplateEngine extends HookEmitter {
 						await this.npmInstall(state.src, 'npm-install-generator', state);
 					}
 
+					const api = new API(state);
+					this.link(api, 'generator-');
+
 					await this.hook('generate', async (state, generator, api) => {
 						await generator(api);
-					})(state, require(generator), new API(state));
+					})(state, require(generator), api);
 				} else {
 					// copy files
 					await this.copy(state, new Set([
