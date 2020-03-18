@@ -13,8 +13,7 @@ Library for creating projects from templates.
  * Project generation using local template as a directory, archive file, or globally installed npm package
  * Download templates from git, npm, or a URL to a archive file
  * Support for `.zip`, `.gz`, `.bz2`, `.tar`, `tar.gz`, `tar.bz2`, `.tgz`, and `.tbz2` archives
- * Generator API for dynamic filenames and file content
- * Template metadata
+ * Render text files using [`ejs`][ejs] during file copy
  * JavaScript lifecycle hooks
  * npm dependency installation
  * git repository initialization
@@ -48,14 +47,26 @@ import TemplateEngine from 'template-kit';
 
 ## Template Specification
 
+### Structure
+
 A template can be an empty directory or a massive collection of files and subdirectories. These
 files can compressed in an archive file (.zip, .tgz, etc).
 
-Templates do not need to be npm packages and they don't need to have a `package.json`. If they do,
-template-kit will happily call `npm install` after generation.
+Templates do _not_ need to be npm packages and they do _not_ need to have a `package.json`. If they
+do, template-kit will happily call `npm install` after generation.
 
-Templates can contains a `generator.js` or `generator/index.js` file which template-kit will
-execute. A generator is provided an API for fully generating the project.
+### Metadata
+
+template-kit will load the template's metadata from a `meta.js` file or the package's "main" file.
+The metadata can be an object or an async function that returns an object. The object contains the
+following properties:
+
+| Property | Type             | Description |
+| -------- | ---------------- | ----------- |
+| complete | `Function`       | A function to call after the project generation is complete. Useful for displaying post create steps. |
+| data     | `Object`         | Arbitrary data to mix in with the `run()` data and pass into `ejs` when copying a text file. |
+| filters  | `Array.<String>` | An array of file patterns to copy. The patterns follow the gitignore rules. |
+| prompts  | `Array.<Object>` | An array of prompt descriptors that is used to select the template and template data. |
 
 ## API
 
@@ -79,8 +90,8 @@ Resolves a template source, installs the template, and manages the install lifec
      * [`#extract-progress`](#TemplateEngine+event+extract-progress)
      * [`#npm-download`](#TemplateEngine+event+npm-download)
      * [`#create`](#TemplateEngine+event+create)
-     * [`#npm-install-generator`](#TemplateEngine+event+npm-install-generator)
-     * [`#generate`](#TemplateEngine+event+generate)
+     * [`#load-meta`](#TemplateEngine+event+load-meta)
+     * [`#prompt`](#TemplateEngine+event+prompt)
      * [`#copy`](#TemplateEngine+event+copy)
      * [`#copy-file`](#TemplateEngine+event+copy-file)
      * [`#npm-install`](#TemplateEngine+event+npm-install)
@@ -95,31 +106,38 @@ Resolves a template source, installs the template, and manages the install lifec
 
 Builds a project based on the specified template and options.
 
-| Param           | Type             | Description     |
-| --------------- | ---------------- | --------------- |
-| opts            | `Object`         | Various options |
-| opts.dest       | `String`         | The destination directory to create the project in. |
-| [opts.force]    | `Boolean`        | When `true`, overrides the destination if it already exists. |
-| [opts.git=true] | `Boolean`        | When `true` and `git` executable is found, after the the project is generated, initialize a git repo in the project directory. |
-| [opts.npmArgs]  | `Array.<String>` | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap. |
-| opts.src        | `String`         | The path to a directory, archive file, globally installed npm package, archive URL, npm package name, or git repo. |
+| Param             | Type                      | Description     |
+| ----------------- | ------------------------- | --------------- |
+| opts              | `Object`                  | Various options |
+| [opts.data]       | `Object`                  | A data object that is passed into `ejs` when copying template files. |
+| opts.dest         | `String`                  | The destination directory to create the project in. |
+| [opts.filters]    | `Set` \| `Array.<String>` | A list of file patterns to pass into `micromatch` when copying files. |
+| [opts.force]      | `Boolean`                 | When `true`, overrides the destination if it already exists. |
+| [opts.git=true]   | `Boolean`                 | When `true` and `git` executable is found, after the the project is generated, initialize a git repo in the project directory. |
+| [opts.npmArgs]    | `Array.<String>`          | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap. |
+| opts.src          | `String`                  | The path to a directory, archive file, globally installed npm package, archive URL, npm package name, or git repo. |
 
 ##### Run State
 
 Every time `run()` is invoked, a new `state` object is created and passed through the various
 stages. The contents of the `state` depends on the Source Type.
 
-| Property    | Type             | Description                                         |
-| ----------- | ---------------- | --------------------------------------------------- |
-| dest        | `String`         | The destination directory to create the project in. |
-| disposables | `Array.<String>` | A list of temp directories to cleanup.              |
-| extractDest | `String`         | The temporary directory where the archive was extracted to. |
-| force       | `Boolean`        | When `true`, overrides the destination if it already exists. |
-| git         | `Boolean`        | When `true` and `git` executable is found, after the the project is generated, initialize a git repo in the project directory. |
-| gitInfo     | `Object`         | The parsed git repo information.                    |
-| manifest    | `Object`         | The npm package information                         |
-| npmArgs     | `Array.<String>` | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap. |
-| src         | `String`         | The path to a directory, archive file, globally installed npm package, archive URL, npm package name, or git repo. |
+| Property    | Type                      | Description                                                  |
+| ----------- | ------------------------- | ------------------------------------------------------------ |
+| dest        | `String`                  | The destination directory to create the project in.          |
+| destFile    | `String`                  | When copying files, this is the destination file path.       |
+| disposables | `Array.<String>`          | A list of temp directories to cleanup.                       |
+| extractDest | `String`                  | The temporary directory where the archive was extracted to.  |
+| filters     | `Set` \| `Array.<String>` | A list of file patterns to copy.                             |
+| force       | `Boolean`                 | When `true`, overrides the destination if it already exists. |
+| git         | `Boolean`                 | When `true` and `git` executable is found, after the the project is generated, initialize a git repo in the project directory. |
+| gitInfo     | `Object`                  | The parsed git repo information.                             |
+| isBinary    | `Boolean`                 | When copying files, indicates if the file is binary or text. |
+| npmArgs     | `Array.<String>`          | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap. |
+| npmManifest | `Object`                  | The npm package information                                  |
+| prompts     | `Array.<Object>`          | A list of prompt descriptors.                                |
+| src         | `String`                  | The path to a directory, archive file, globally installed npm package, archive URL, npm package name, or git repo. |
+| srcFile     | `String`                  | When copying files, this is the source file path.            |
 
 ### Events
 
@@ -127,51 +145,45 @@ The `TemplateEngine` emits several events. Some events are only emitted dependin
 type (e.g. the `src` passed into `run()`).
 
 ```
-Event Order                  +-------+
-                             | run() |
-                             +---+---+
-                                 |     +-------+
-                                 +-----| #init |
-                                 |     +-------+
-                                 |
-      +--------------+-----------+--------+----------+----------+
-      |              |           |        |          |          |
+Event Flow                   ┌───────┐
+                             │ run() │
+                             └───┬───┘ ┌───────┐
+                                 ├─────┤ #init │
+                                 │     └───────┘
+      ┌──────────────┬───────────┼────────┬──────────┬──────────┐
      git            URL        Local    Local      Global      npm
-      |              |         File   Directory  npm Package    |
-      |        +-----+-----+     |        |          |          |
-      |        | #download |     |        |          |          |
-      |        +-----+-----+     |        |          |          |
-      |              |           |        |          |          |
-+-----+------+       +-----+-----+        |          |  +-------+-------+
-| #git-clone |             |              |          |  | #npm-download |
-+-----+------+   +---------+---------+    |          |  +-------+-------+
-      |          | #extract          |    |          |          |
-      |          | #extract-file     |    |          |          |
-      |          | #extract-progress |    |          |          |
-      |          +---------+---------+    |          |          |
-      |                    |              |          |          |
-      +--------------------+-------+------+----------+----------+
-                                   |
-                              +----+----+
-                              | #create |
-                              +----+----+
-                                   |
-                     +-------------+-------------+
-                     |                           |
-                 generator                  no generator
-                     |                           |
-         +-----------+------------+        +-----+------+
-         | #npm-install-generator |        | #copy      |
-         | #generate              |        | #copy-file |
-         +-----------+------------+        +-----+------+
-                     |                           |
-                     +-------------+-------------+
-                                   |
-                            +------+-------+
-                            | #npm-install |
-                            | #git-init    |
-                            | #cleanup     |
-                            +--------------+
+      │              │         File   Directory  npm Package    │
+      │        ┌─────┴─────┐     │        │          │          │
+      │        │ #download │     │        │          │          │
+      │        └─────┬─────┘     │        │          │          │
+┌─────┴──────┐       └─────┬─────┘        │          │  ┌───────┴───────┐
+│ #git-clone │   ┌─────────┴─────────┐    │          │  │ #npm-download │
+└─────┬──────┘   │ #extract          │    │          │  └───────┬───────┘
+      │          │ #extract-file     │    │          │          │
+      │          │ #extract-progress │    │          │          │
+      │          └─────────┬─────────┘    │          │          │
+      └────────────────────┴───────┬──────┴──────────┴──────────┘
+                             ┌─────┴──────┐
+                             │ #load-meta │
+                             └─────┬──────┘ ┌─────────┐
+                                   ├────────┤ #prompt │
+                              ┌────┴────┐   └─────────┘
+                              │ #create │
+                              └────┬────┘ ┌───────┐
+                                   ├──────┤ #copy │
+                                   │      └───┬───┘ ┌────────────┐
+                                   │          └─────┤ #copy-file │
+                                   │                └────────────┘
+                                   │      ┌──────────────┐
+                                   ├──────┤ #npm-install │
+                                   │      └──────────────┘
+                                   │      ┌───────────┐
+                                   ├──────┤ #git-init │
+                                   │      └───────────┘
+                              ┌────┴─────┐
+                              │ #cleanup │
+                              └──────────┘
+
 ```
 
 <a name="TemplateEngine+event+init"></a>
@@ -333,7 +345,7 @@ engine.on('npm-download', async (state, next) => {
 
 Emitted when about to populate the destination directory.
 
-**Source Type:** Local file, local directory, global npm package, npm, git, URL
+**Source Type:** All sources.
 
 | Param              | Type       | Description            |
 | ------------------ | ---------- | ---------------------- |
@@ -348,49 +360,42 @@ engine.on('create', async (state, next) => {
 });
 ```
 
-<a name="TemplateEngine+event+npm-install-generator"></a>
+<a name="TemplateEngine+event+load-meta"></a>
 
-#### `#npm-install-generator`
+#### `#load-meta`
 
-Emitted when installing npm dependencies for use with the generator.
+Emitted when loading the template's `meta.js` or "main" file.
 
-**Source Type:** Any source with a generator script.
+**Source Type:** Any source with a meta script.
 
 | Param              | Type             | Description              |
 | ------------------ | ---------------- | ------------------------ |
 | state              | `Object`         | The run state.           |
-| cmd                | `String`         | The path to npm command. |
-| args               | `Array.<String>` | The npm arguments.       |
-| opts               | `Object`         | `spawn()` options.       |
 | [async next(opts)] | `Function`       | Continue to next hook.   |
 
 ```javascript
-engine.on('npm-install-generator', async (state, cmd, args, opts, next) => {
+engine.on('load-meta', async (state, next) => {
     // before npm dependencies have been installed
     await next();
     // after installation
 });
 ```
 
-<a name="TemplateEngine+event+generate"></a>
+<a name="TemplateEngine+event+prompt"></a>
 
-#### `#generate`
+#### `#prompt`
 
-Emitted when executing the template's generator.
+Allows application opportunity to prompt for missing data, then populate state's `data` property.
 
-**Source Type:** Any source with a `generator.js` or `generator/index.js`.
+**Source Type:** Any source with a meta script.
 
 | Param              | Type       | Description                            |
 | ------------------ | ---------- | -------------------------------------- |
 | state              | `Object`   | The run state.                         |
-| generator          | `Function` | The generator function to be executed. |
-| [async next(opts)] | `Function` | Continue to next hook.                 |
 
 ```javascript
-engine.on('generate', async (state, generator, next) => {
-    // before the generator is called
-    await next();
-    // after project is generated
+engine.on('prompt', async state => {
+    // prompt for `state.prompts` and store results in `state.data`
 });
 ```
 
@@ -400,16 +405,15 @@ engine.on('generate', async (state, generator, next) => {
 
 Emitted when copying the template files to the destination.
 
-**Source Type:** Any source _without_ a generator script.
+**Source Type:** All sources.
 
 | Param              | Type       | Description                          |
 | ------------------ | ---------- | ------------------------------------ |
 | state              | `Object`   | The run state.                       |
-| ignore             | `Set`      | A list of full file paths to ignore. |
 | [async next(opts)] | `Function` | Continue to next hook.               |
 
 ```javascript
-engine.on('copy', async (state, ignore, next) => {
+engine.on('copy', async (state, next) => {
     // before copying has begun
     await next();
     // after files have been copied
@@ -422,17 +426,18 @@ engine.on('copy', async (state, ignore, next) => {
 
 Emitted for each file copied.
 
-**Source Type:** Any source _without_ a generator script.
+**Source Type:** All sources.
 
 | Param              | Type       | Description                         |
 | ------------------ | ---------- | ----------------------------------- |
 | state              | `Object`   | The run state.                      |
-| src                | `String`   | The path of the file being copied.  |
-| dest               | `String`   | The destination of the copied file. |
+| [async next(opts)] | `Function` | Continue to next hook.               |
 
 ```javascript
-engine.on('copy-file', async (state, src, dest, next) => {
+engine.on('copy-file', async (state, next) => {
     // before a specific file is to be copied
+    await next();
+    // file has been copied
 });
 ```
 
@@ -504,10 +509,6 @@ engine.on('cleanup`', async (state, next) => {
 });
 ```
 
-## Generator API
-
-Coming soon!
-
 ## Legal
 
 This project is open source under the [Apache Public License v2][1] and is developed by
@@ -526,3 +527,4 @@ in this distribution for more information.
 [david-url]: https://david-dm.org/appcelerator/template-kit
 [david-dev-image]: https://img.shields.io/david/dev/appcelerator/template-kit.svg
 [david-dev-url]: https://david-dm.org/appcelerator/template-kit#info=devDependencies
+[ejs]: https://www.npmjs.com/package/ejs

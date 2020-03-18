@@ -3,6 +3,7 @@ if (!Error.prepareStackTrace) {
 	require('source-map-support/register');
 }
 
+import ejs from 'ejs';
 import fs from 'fs-extra';
 import globalModules from 'global-modules';
 import got from 'got';
@@ -13,9 +14,13 @@ import pacote from 'pacote';
 import path from 'path';
 import snooplogg from 'snooplogg';
 import tmp from 'tmp';
+import validatePackageName from 'validate-npm-package-name';
 
 import { expandPath } from 'appcd-path';
+import { glob } from 'glob-gitignore';
+import { isBinaryFile } from 'isbinaryfile';
 import { isDir, isFile } from 'appcd-fs';
+import { promisify } from 'util';
 import { run, which } from 'appcd-subprocess';
 
 const { log, warn } = snooplogg('template-kit');
@@ -23,24 +28,27 @@ const { highlight } = snooplogg.styles;
 
 const filenameRegExp = /[^\\/]+(\.zip|\.tgz|\.tbz2|\.tar\.gz|\.tar\.bz2|(?<!\.tar)\.gz|(?<!\.tar)\.bz2)$/;
 
-class API extends HookEmitter {
-	constructor(state) {
-		super();
-
-		try {
-			this.metadata = fs.readJsonSync(path.join(state.src, 'package.json'));
-		} catch (e) {
-			this.metadata = {};
-		}
-	}
-}
-
 export default class TemplateEngine extends HookEmitter {
+	/**
+	 * The list of default `multimatch` patterns.
+	 *
+	 * @type {Array.<String>}
+	 * @access public
+	 */
+	static DefaultFilters = [
+		'!.git',
+		'!node_modules'
+	];
+
 	/**
 	 * Builds a project based on the specified template and options.
 	 *
 	 * @param {Object} opts - Various options.
+	 * @param {Object} [opts.data] - A data object that is passed into `ejs` when copying template
+	 * files.
 	 * @param {String} opts.dest - The destination directory to create the project in.
+	 * @param {Set|Array.<String>} [opts.filters] - A list of file patterns to pass into
+	 * `micromatch` when copying files.
 	 * @param {Boolean} [opts.force] - When `true`, overrides the destination if it already exists.
 	 * @param {Boolean} [opts.git=true] - When `true` and `git` executable is found, after the
 	 * the project is generated, initialize a git repo in the project directory.
@@ -59,19 +67,15 @@ export default class TemplateEngine extends HookEmitter {
 		const state = await this.hook('init', this, this.init)(opts);
 
 		try {
-			let installDeps = false;
-
 			if (state.gitInfo = hostedGitInfo.fromUrl(state.src)) {
 				await this.gitClone(state);
-				installDeps = true;
 			} else if (/^https?:\/\//.test(state.src)) {
 				await this.download(state);
-				installDeps = true;
 			}
 
+			// if the source is a file, then it's an archive and it must be extracted
 			if (isFile(state.src)) {
 				await this.extract(state);
-				installDeps = true;
 			}
 
 			if (isDir(state.src)) {
@@ -81,14 +85,11 @@ export default class TemplateEngine extends HookEmitter {
 				const globalDir = process.env.GLOBAL_NPM_MODULES_DIR || globalModules;
 				let globalPackageDir;
 				for (const name of fs.readdirSync(globalDir)) {
-					try {
-						const pkgFile = path.join(globalDir, name, 'package.json');
-						if (fs.readJsonSync(pkgFile).name === state.src) {
-							globalPackageDir = path.join(globalDir, name);
-							break;
-						}
-					} catch (e) {
-						// squelch
+					const pkg = await this.loadPackage(path.join(globalDir, name));
+					if (pkg && pkg.name === state.src) {
+						globalPackageDir = path.join(globalDir, name);
+						state.pkg = pkg;
+						break;
 					}
 				}
 
@@ -101,48 +102,51 @@ export default class TemplateEngine extends HookEmitter {
 				} else {
 					// remote npm package
 					try {
-						state.manifest = await pacote.manifest(state.src, { fullMetadata: true });
+						const result = validatePackageName(state.src.split('@')[0]);
+						if (!result.validForNewPackages && !result.validForOldPackages) {
+							throw new Error('Definitely not a valid npm package name');
+						}
+
+						state.npmManifest = await pacote.manifest(state.src, { fullMetadata: true });
 					} catch (e) {
 						throw new Error('Unable to determine template source');
 					}
 
 					await this.npmDownload(state);
-					installDeps = true;
 				}
 			}
 
-			log(`Creating project destination: ${highlight(state.dest)}`);
-			await fs.mkdirs(state.dest);
+			// load the package.json, if exists
+			if (state.pkg === undefined) {
+				state.pkg = await this.loadPackage(state.src);
+			}
+
+			// try to determine meta file
+			if (state.pkg) {
+				let { main } = state.pkg;
+				let metaFile = main && path.resolve(state.src, main);
+				if (isFile(metaFile) || isFile(metaFile = path.join(state.src, 'meta.js'))) {
+					state.metaFile = metaFile;
+				}
+			}
+
+			await this.loadMeta(state);
+
+			if (state.template) {
+				state.src = path.resolve(state.src, state.template);
+			}
 
 			await this.hook('create', async state => {
-				let generator = path.join(state.src, 'generator.js');
-				if (!isFile(generator)) {
-					generator = path.join(state.src, 'generator', 'index.js');
-				}
+				await this.copy(state);
 
-				if (isFile(generator)) {
-					if (installDeps) {
-						await this.npmInstall(state.src, 'npm-install-generator', state);
-					}
-
-					const api = new API(state);
-					this.link(api, 'generator-');
-
-					await this.hook('generate', async (state, generator, api) => {
-						await generator(api);
-					})(state, require(generator), api);
-				} else {
-					// copy files
-					await this.copy(state, new Set([
-						path.join(state.src, '.git'),
-						path.join(state.src, 'node_modules')
-					]));
-				}
-
-				await this.npmInstall(state.dest, 'npm-install', state);
+				await this.npmInstall(state);
 
 				await this.gitInit(state);
 			})(state);
+
+			if (typeof state.complete === 'function') {
+				await state.complete(state);
+			}
 		} finally {
 			await this.hook('cleanup', async state => {
 				for (const disposable of state.disposables) {
@@ -158,22 +162,60 @@ export default class TemplateEngine extends HookEmitter {
 	 * Copy files from the state source to the destination.
 	 *
 	 * @param {Object} state - The run state.
-	 * @param {Set} [ignore] - A list of files to not copy.
 	 * @returns {Promise}
 	 * @access private
 	 */
-	async copy(state, ignore) {
-		await this.hook('copy', async (state, ignore) => {
-			await fs.copy(state.src, state.dest, {
-				filter: (src, dest) => {
-					if (!ignore || !ignore.has(src)) {
-						log(`Copying ${highlight(src)} => ${highlight(path.relative(src, dest))}`);
-						this.emit('copy-file', state, src, dest);
-						return true;
-					}
+	async copy(state) {
+		await this.hook('copy', async state => {
+			const copyFile = promisify(fs.copyFile);
+			const readFile = promisify(fs.readFile);
+			const writeFile = promisify(fs.writeFile);
+
+			// separate positive from negative paths
+			const patterns = [];
+			const ignore = [];
+			for (const pattern of Array.from(state.filters)) {
+				if (pattern[0] === '!') {
+					ignore.push(pattern.substring(1));
+				} else {
+					patterns.push(pattern);
 				}
+			}
+
+			// if there's no patterns, then match everything
+			const files = await glob(patterns.length ? patterns : '**', {
+				cwd: state.src,
+				dot: true,
+				ignore
 			});
-		})(state, ignore);
+
+			for (const file of files) {
+				state.srcFile = path.join(state.src, file);
+				state.destFile = path.join(state.dest, file);
+				state.isBinary = await isBinaryFile(state.srcFile);
+
+				await this.hook('copy-file', async state => {
+					log(`${state.isBinary ? 'Copying' : 'Rendering'} ${highlight(state.srcFile)} => ${highlight(path.relative(state.srcFile, state.destFile))}`);
+
+					await fs.mkdirs(path.dirname(state.destFile));
+
+					if (state.isBinary) {
+						// copy
+						await copyFile(state.srcFile, state.destFile);
+					} else {
+						// render
+						let contents = await readFile(state.srcFile);
+						contents = await ejs.render(contents.toString(), state.data, {
+							async: true,
+							root: state.src
+						});
+						await writeFile(state.destFile, contents);
+					}
+				})(state);
+			}
+
+			state.srcFile = state.destFile = state.isBinary = undefined;
+		})(state);
 	}
 
 	/**
@@ -336,17 +378,26 @@ export default class TemplateEngine extends HookEmitter {
 	 * Initializes the state prior running.
 	 *
 	 * @param {Object} opts - Various options.
-	 * @returns {Promise}
+	 * @returns {Object}
 	 * @access private
 	 */
-	async init(opts) {
+	init(opts) {
 		if (!opts || typeof opts !== 'object') {
 			throw new TypeError('Expected options to be an object');
 		}
 
-		const state = { ...opts };
-
-		Object.defineProperty(state, 'disposables', { value: [] });
+		const state = {
+			template:    '.',
+			...opts,
+			disposables: [],
+			extractDest: undefined,
+			gitInfo:     undefined,
+			meta:        {},
+			metaFile:    undefined,
+			npmManifest: undefined,
+			pkg:         undefined,
+			prompts:     []
+		};
 
 		if (!state.src || typeof state.src !== 'string') {
 			throw new TypeError('Expected source to be a path, npm package name, URL, or git repo');
@@ -370,7 +421,96 @@ export default class TemplateEngine extends HookEmitter {
 			throw new Error('Destination already exists');
 		}
 
+		if (!state.data) {
+			state.data = {};
+		} else if (typeof state.data !== 'object') {
+			throw new TypeError('Expected data to be an object');
+		}
+
+		if (!state.filters) {
+			state.filters = new Set(TemplateEngine.DefaultFilters);
+		} else if (Array.isArray(state.filters) || state.filters instanceof Set) {
+			state.filters = new Set([ ...state.filters ]);
+		} else {
+			throw new TypeError('Expected filters to be an array or set of file patterns');
+		}
+
 		return state;
+	}
+
+	/**
+	 * Loads and validates the template's metadata.
+	 *
+	 * @param {Object} state - The run state.
+	 * @returns {Promise}
+	 * @access private
+	 */
+	async loadMeta(state) {
+		// load the template meta
+		const meta = await this.hook('load-meta', async state => {
+			let meta;
+			if (state.metaFile) {
+				log(`Loading metadata: ${highlight(state.metaFile)}`);
+				meta = require(state.metaFile);
+			}
+			// if this is an ES6 module, grab the default export
+			if (meta && typeof meta === 'object' && meta.__esModule) {
+				meta = meta.default;
+			}
+
+			return (typeof meta === 'function' ? await meta(state) : meta) || {};
+		})(state);
+
+		if (typeof meta !== 'object') {
+			throw new TypeError('Expected template meta export to be an object or function');
+		}
+
+		if (meta.complete) {
+			if (typeof meta.complete !== 'function') {
+				throw new TypeError('Expected template meta complete callback to be a function');
+			}
+			state.complete = meta.complete;
+		}
+
+		if (meta.data) {
+			if (typeof meta.data !== 'object') {
+				throw new TypeError('Expected template meta filters to be an array or set of file patterns');
+			}
+			state.data = {
+				...meta.data,
+				...state.data
+			};
+		}
+
+		if (meta.filters) {
+			if (!Array.isArray(meta.filters) && !(meta.filters instanceof Set)) {
+				throw new TypeError('Expected template meta filters to be an array or set of file patterns');
+			}
+			state.filters = new Set([ ...meta.filters ]);
+		}
+
+		if (meta.prompts) {
+			if (!Array.isArray(meta.prompts) || meta.prompts.some(p => !p || typeof p !== 'object')) {
+				throw new TypeError('Expected template meta prompts to be an array of objects');
+			}
+			state.prompts = meta.prompts;
+			await this.emit('prompt', state);
+		}
+	}
+
+	/**
+	 * Attempt to load the `package.json`, if it exists.
+	 *
+	 * @param {String} dir - The path of the package to load the `package.json` from.
+	 * @returns {Promise<Object>} Resolves the parsed contents or `null`.
+	 * @access private
+	 */
+	async loadPackage(dir) {
+		try {
+			return await fs.readJson(path.join(dir, 'package.json'));
+		} catch (e) {
+			return null;
+		}
 	}
 
 	/**
@@ -401,13 +541,12 @@ export default class TemplateEngine extends HookEmitter {
 		state.src = this.makeTemp(state);
 
 		await this.hook('npm-download', async state => {
-			log(`Downloading ${highlight(`${state.manifest.name}@${state.manifest.version}`)}`);
-			await pacote.extract(`${state.manifest.name}@${state.manifest.version}`, state.src);
+			log(`Downloading ${highlight(`${state.npmManifest.name}@${state.npmManifest.version}`)}`);
+			await pacote.extract(`${state.npmManifest.name}@${state.npmManifest.version}`, state.src);
 		})(state);
 
-		// pacote has a "bug" where .gitignore is renamed to .npmignore and there's nothing we can
-		// do about it (https://github.com/npm/pacote/issues/33)
-		//
+		// pacote has a "feature" where .gitignore is renamed to .npmignore and there's nothing we
+		// can do about it (https://github.com/npm/pacote/issues/33)
 		// as a workaround, if we find any files named `gitignore`, rename them to `.gitignore`
 		const walk = dir => {
 			const gitIgnore = path.join(dir, 'gitignore');
@@ -431,14 +570,12 @@ export default class TemplateEngine extends HookEmitter {
 	/**
 	 * Installs template npm dependencies if a `package.json` exists.
 	 *
-	 * @param {String} dir - The directory to install dependencies in.
-	 * @param {String} event - The name of the npm event to emit.
 	 * @param {Object} state - The run state.
 	 * @returns {Promise}
 	 * @access private
 	 */
-	async npmInstall(dir, event, state) {
-		if (!isFile(path.join(dir, 'package.json'))) {
+	async npmInstall(state) {
+		if (!isFile(path.join(state.dest, 'package.json'))) {
 			log('Template does not have a package.json, skipping npm install');
 			return;
 		}
@@ -460,10 +597,10 @@ export default class TemplateEngine extends HookEmitter {
 		let code;
 
 		try {
-			code = await this.hook(event, async (state, cmd, args, opts) => {
-				log(`Install template dependencies: ${highlight(dir)}`);
+			code = await this.hook('npm-install', async (state, cmd, args, opts) => {
+				log(`Install template dependencies: ${highlight(state.dest)}`);
 				return (await run(cmd, args, opts)).code;
-			})(state, 'npm', Array.from(args), { cwd: dir, env });
+			})(state, 'npm', Array.from(args), { cwd: state.dest, env });
 		} finally {
 			(code ? warn : log)(`npm install exited (code ${code})`);
 		}
