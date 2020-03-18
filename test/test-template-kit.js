@@ -263,7 +263,7 @@ describe('template-kit', function () {
 			]);
 		});
 
-		it('should resolve a local directory source - advanced', async () => {
+		it.skip('should resolve a local directory source - advanced', async () => {
 			const engine = new TemplateEngine();
 			const dest = makeTempName();
 
@@ -511,11 +511,12 @@ describe('template-kit', function () {
 				'extract-file': 0,
 				'extract-progress': 0,
 				'npm-download': 0,
-				'npm-install': 1,
-				'npm-install-generator': 0,
+				'load-meta': 1,
+				'prompt': 0,
 				'create': 1,
 				'copy': 1,
-				'copy-file': 5,
+				'copy-file': 3,
+				'npm-install': 1,
 				'git-init': 1,
 				'cleanup': 1
 			});
@@ -546,11 +547,12 @@ describe('template-kit', function () {
 				'extract-file': 0,
 				'extract-progress': 0,
 				'npm-download': 0,
-				'npm-install': 1,
-				'npm-install-generator': 0,
+				'load-meta': 1,
+				'prompt': 0,
 				'create': 1,
 				'copy': 1,
-				'copy-file': 5,
+				'copy-file': 3,
+				'npm-install': 1,
 				'git-init': 1,
 				'cleanup': 1
 			});
@@ -583,11 +585,12 @@ describe('template-kit', function () {
 				'extract-file': 3,
 				'extract-progress': -1,
 				'npm-download': 0,
-				'npm-install': 1,
-				'npm-install-generator': 0,
+				'load-meta': 1,
+				'prompt': 0,
 				'create': 1,
 				'copy': 1,
-				'copy-file': 5,
+				'copy-file': 3,
+				'npm-install': 1,
 				'git-init': 1,
 				'cleanup': 1
 			});
@@ -618,14 +621,51 @@ describe('template-kit', function () {
 				'extract-file': 0,
 				'extract-progress': 0,
 				'npm-download': 1,
-				'npm-install': 1,
-				'npm-install-generator': 0,
+				'load-meta': 1,
+				'prompt': 0,
 				'create': 1,
 				'copy': 1,
-				'copy-file': 5,
+				'copy-file': 3,
+				'npm-install': 1,
 				'git-init': 1,
 				'cleanup': 1
 			});
+		});
+	});
+
+	describe('Variable Filenames', () => {
+		it('should handle a path with forward slashes', () => {
+			const engine = new TemplateEngine();
+			const file = engine.renderFilename('/foo/{{bar}}/{{null}}/_baz{{wiz}}.txt', {
+				bar: 'bow',
+				wiz: 'wow'
+			});
+			expect(file).to.equal('/foo/bow/{{null}}/_bazwow.txt');
+		});
+
+		it('should handle a path with back slashes', () => {
+			const engine = new TemplateEngine();
+			const file = engine.renderFilename('\\foo\\{{bar}}\\{{null}}\\_baz{{wiz}}.txt', {
+				bar: 'bow',
+				wiz: 'wow'
+			});
+			expect(file).to.equal('\\foo\\bow\\{{null}}\\_bazwow.txt');
+		});
+
+		it('should not match variables containing a path separator', () => {
+			const engine = new TemplateEngine();
+			const file = engine.renderFilename('/foo/{{bar/null}}.txt', {
+				bar: 'baz'
+			});
+			expect(file).to.equal('/foo/{{bar/null}}.txt');
+		});
+
+		it('should not match variables with nested variable', () => {
+			const engine = new TemplateEngine();
+			const file = engine.renderFilename('/foo/{{bar{{baz}}}}.txt', {
+				bar: 'baz'
+			});
+			expect(file).to.equal('/foo/{{bar{{baz}}}}.txt');
 		});
 	});
 });
@@ -640,11 +680,12 @@ function createSpies(engine) {
 		'extract-file',
 		'extract-progress',
 		'npm-download',
-		'npm-install',
-		'npm-install-generator',
+		'load-meta',
+		'prompt',
 		'create',
 		'copy',
 		'copy-file',
+		'npm-install',
 		'git-init',
 		'cleanup'
 	];

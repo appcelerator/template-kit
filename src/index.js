@@ -26,7 +26,8 @@ import { run, which } from 'appcd-subprocess';
 const { log, warn } = snooplogg('template-kit');
 const { highlight } = snooplogg.styles;
 
-const filenameRegExp = /[^\\/]+(\.zip|\.tgz|\.tbz2|\.tar\.gz|\.tar\.bz2|(?<!\.tar)\.gz|(?<!\.tar)\.bz2)$/;
+const archiveRegExp = /[^\\/]+(\.zip|\.tgz|\.tbz2|\.tar\.gz|\.tar\.bz2|(?<!\.tar)\.gz|(?<!\.tar)\.bz2)$/;
+const fileRegExp = /\{\{(\w+?)\}\}/g;
 
 export default class TemplateEngine extends HookEmitter {
 	/**
@@ -191,7 +192,7 @@ export default class TemplateEngine extends HookEmitter {
 
 			for (const file of files) {
 				state.srcFile = path.join(state.src, file);
-				state.destFile = path.join(state.dest, file);
+				state.destFile = path.join(state.dest, this.renderFilename(file, state.data));
 				state.isBinary = await isBinaryFile(state.srcFile);
 
 				await this.hook('copy-file', async state => {
@@ -248,7 +249,7 @@ export default class TemplateEngine extends HookEmitter {
 						}
 
 						// try to determine the file extension by the filename in the url
-						if (!filename && (m = state.src.match(filenameRegExp))) {
+						if (!filename && (m = state.src.match(archiveRegExp))) {
 							filename = m[0];
 						}
 
@@ -604,5 +605,23 @@ export default class TemplateEngine extends HookEmitter {
 		} finally {
 			(code ? warn : log)(`npm install exited (code ${code})`);
 		}
+	}
+
+	/**
+	 * Replaces variables in a path.
+	 *
+	 * @param {String} file - A file path that contains the `{{variable}}` tokens.
+	 * @param {Object} data - An object with data to populate the filename.
+	 * @returns {String}
+	 * @access private
+	 */
+	renderFilename(file, data) {
+		if (typeof file !== 'string' || !data) {
+			return file;
+		}
+
+		return file.replace(fileRegExp, (match, name) => {
+			return Object.prototype.hasOwnProperty.call(data, name) ? String(data[name]) : match;
+		});
 	}
 }

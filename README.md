@@ -15,6 +15,7 @@ Library for creating projects from templates.
  * Support for `.zip`, `.gz`, `.bz2`, `.tar`, `tar.gz`, `tar.bz2`, `.tgz`, and `.tbz2` archives
  * Render text files using [`ejs`][ejs] during file copy
  * JavaScript lifecycle hooks
+ * Data-driven destination directories and filenames
  * npm dependency installation
  * git repository initialization
 
@@ -54,6 +55,14 @@ files can compressed in an archive file (.zip, .tgz, etc).
 
 Templates do _not_ need to be npm packages and they do _not_ need to have a `package.json`. If they
 do, template-kit will happily call `npm install` after generation.
+
+Any file that is _not_ binary will be treated as an [ejs][ejs] template regardless of extension.
+ejs templates have access to any variable or function in the `data` object including the `opts.data`
+passed into the `TemplateEngine` constructor, the `data` export from the `meta.js`, or any
+data that has be injected via a hook.
+
+Directories and filenames may contain a `{{variable}}` sequence which will be replaced with the
+corresponding value in the `data` object.
 
 ### Metadata
 
@@ -141,8 +150,10 @@ stages. The contents of the `state` depends on the Source Type.
 
 ### Events
 
-The `TemplateEngine` emits several events. Some events are only emitted depending on the source
-type (e.g. the `src` passed into `run()`).
+The `TemplateEngine` emits several events. It uses the [hook-emitter][hook-emitter] package which
+supports async event listeners.
+
+Some events are only emitted depending on the source type (e.g. the `src` passed into `run()`).
 
 ```
 Event Flow                   ┌───────┐
@@ -152,8 +163,7 @@ Event Flow                   ┌───────┐
                                  │     └───────┘
       ┌──────────────┬───────────┼────────┬──────────┬──────────┐
      git            URL        Local    Local      Global      npm
-      │              │         File   Directory  npm Package    │
-      │        ┌─────┴─────┐     │        │          │          │
+      │        ┌─────┴─────┐   File   Directory  npm Package    │
       │        │ #download │     │        │          │          │
       │        └─────┬─────┘     │        │          │          │
 ┌─────┴──────┐       └─────┬─────┘        │          │  ┌───────┴───────┐
@@ -169,21 +179,19 @@ Event Flow                   ┌───────┐
                                    ├────────┤ #prompt │
                               ┌────┴────┐   └─────────┘
                               │ #create │
-                              └────┬────┘ ┌───────┐
-                                   ├──────┤ #copy │
-                                   │      └───┬───┘ ┌────────────┐
-                                   │          └─────┤ #copy-file │
-                                   │                └────────────┘
-                                   │      ┌──────────────┐
-                                   ├──────┤ #npm-install │
-                                   │      └──────────────┘
-                                   │      ┌───────────┐
-                                   ├──────┤ #git-init │
-                                   │      └───────────┘
+                              └────┬────┘   ┌───────┐
+                                   ├────────┤ #copy │
+                                   │        └───┬───┘    ┌────────────┐
+                                   │            └────────┤ #copy-file │
+                                   │    ┌──────────────┐ └────────────┘
+                                   ├────┤ #npm-install │
+                                   │    └──────────────┘
+                                   │    ┌───────────┐
+                                   ├────┤ #git-init │
+                                   │    └───────────┘
                               ┌────┴─────┐
                               │ #cleanup │
                               └──────────┘
-
 ```
 
 <a name="TemplateEngine+event+init"></a>
@@ -364,7 +372,7 @@ engine.on('create', async (state, next) => {
 
 #### `#load-meta`
 
-Emitted when loading the template's `meta.js` or "main" file.
+Emitted when attempting to load the template's `meta.js` or "main" file.
 
 **Source Type:** Any source with a meta script.
 
@@ -516,7 +524,6 @@ This project is open source under the [Apache Public License v2][1] and is devel
 in this distribution for more information.
 
 [1]: https://github.com/appcelerator/template-kit/blob/master/LICENSE
-
 [npm-image]: https://img.shields.io/npm/v/template-kit.svg
 [npm-url]: https://npmjs.org/package/template-kit
 [downloads-image]: https://img.shields.io/npm/dm/template-kit.svg
@@ -528,3 +535,4 @@ in this distribution for more information.
 [david-dev-image]: https://img.shields.io/david/dev/appcelerator/template-kit.svg
 [david-dev-url]: https://david-dm.org/appcelerator/template-kit#info=devDependencies
 [ejs]: https://www.npmjs.com/package/ejs
+[hook-emitter]: https://www.npmjs.com/package/hook-emitter
