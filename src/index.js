@@ -350,7 +350,6 @@ export class TemplateEngine extends HookEmitter {
 		try {
 			state.src = await this.hook('git-clone', async (state, args, opts) => {
 				log(`Cloning repo into ${highlight(opts.cwd)}`);
-				log(process.env);
 				await run(cmd, args, opts);
 				return path.join(dir, gitInfo.project);
 			})(state, args, { cwd: dir });
@@ -653,7 +652,7 @@ export class TemplateEngine extends HookEmitter {
 			code = await this.hook('npm-install', async (state, cmd, args, opts) => {
 				log(`Install template dependencies: ${highlight(state.dest)}`);
 				return (await run(cmd, args, opts)).code;
-			})(state, 'npm', Array.from(args), { cwd: state.dest, env });
+			})(state, await which('npm'), Array.from(args), { cwd: state.dest, env });
 		} finally {
 			(code ? /* istanbul ignore next */ warn : log)(`npm install exited (code ${code})`);
 		}
