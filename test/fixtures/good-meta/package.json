@@ -2,5 +2,6 @@
 	"name": "advanced-template",
 	"dependencies": {
 		"fs-extra": "^8.1.0"
-	}
+	},
+	"main": "./meta.js"
 }

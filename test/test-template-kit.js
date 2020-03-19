@@ -88,13 +88,38 @@ describe('template-kit', function () {
 			})).to.be.rejectedWith(TypeError, 'Expected destination to be a path');
 		});
 
-		it('should error if the template cannot be found', async () => {
+		it('should error if the template cannot be found with valid npm name', async () => {
 			const engine = new TemplateEngine();
-
 			await expect(engine.run({
 				src: `template-kit-test-not-found-${Date.now()}`,
 				dest: makeTempName()
 			})).to.be.rejectedWith(Error, 'Unable to determine template source');
+		});
+
+		it('should error if the template cannot be found with invalid npm new name', async () => {
+			const engine = new TemplateEngine();
+			await expect(engine.run({
+				src: `.template-kit-test-${Date.now()}`,
+				dest: makeTempName()
+			})).to.be.rejectedWith(Error, 'Unable to determine template source');
+		});
+
+		it('should error if data is invalid', async () => {
+			const engine = new TemplateEngine();
+			await expect(engine.run({
+				src: `template-kit-test-not-found-${Date.now()}`,
+				dest: makeTempName(),
+				data: 123
+			})).to.be.rejectedWith(TypeError, 'Expected data to be an object');
+		});
+
+		it('should error if filters is invalid', async () => {
+			const engine = new TemplateEngine();
+			await expect(engine.run({
+				src: `template-kit-test-not-found-${Date.now()}`,
+				dest: makeTempName(),
+				filters: 123
+			})).to.be.rejectedWith(TypeError, 'Expected filters to be an array or set of file patterns');
 		});
 	});
 
@@ -260,21 +285,6 @@ describe('template-kit', function () {
 				'.gitignore',
 				'README.md',
 				'package.json'
-			]);
-		});
-
-		it.skip('should resolve a local directory source - advanced', async () => {
-			const engine = new TemplateEngine();
-			const dest = makeTempName();
-
-			await engine.run({
-				dest,
-				src: path.join(__dirname, 'fixtures', 'advanced')
-			});
-
-			expect(fs.readdirSync(dest)).to.have.members([
-				'.git'
-				// TODO: Add other files
 			]);
 		});
 	});
@@ -631,6 +641,19 @@ describe('template-kit', function () {
 				'cleanup': 1
 			});
 		});
+
+		it('should not emit prompt event if no prompts', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+			const src = path.join(__dirname, 'fixtures', 'good-meta-empty-prompts');
+			const spy = sinon.spy();
+
+			engine.on('prompt', () => spy());
+
+			await engine.run({ dest, src });
+
+			expect(spy).to.not.be.called;
+		});
 	});
 
 	describe('Variable Filenames', () => {
@@ -666,6 +689,109 @@ describe('template-kit', function () {
 				bar: 'baz'
 			});
 			expect(file).to.equal('/foo/{{bar{{baz}}}}.txt');
+		});
+
+		it('should return original string if no data', () => {
+			const engine = new TemplateEngine();
+			const file = engine.renderFilename('foo');
+			expect(file).to.equal('foo');
+		});
+	});
+
+	describe('Meta', () => {
+		it('should generate template with meta file', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'good-meta'),
+				filters: [
+					'foo-test',
+					'!bar-test'
+				]
+			});
+
+			expect(fs.readdirSync(dest)).to.have.members([
+				'.git',
+				'.gitignore',
+				'package.json',
+				'README.md',
+				'src',
+				'node_modules'
+			]);
+
+			const destSrc = path.join(dest, 'src');
+			expect(fs.existsSync(destSrc)).to.equal(true);
+			expect(fs.readdirSync(destSrc)).to.have.members([
+				'test_bar',
+				'index.js',
+				'bintest.zip'
+			]);
+
+			const helloFile = path.join(destSrc, 'test_bar', 'file_hello.txt');
+			expect(fs.existsSync(helloFile)).to.equal(true);
+			expect(fs.readFileSync(helloFile).toString()).to.match(/Just wanted to say hello!/);
+		});
+
+		it('should error if meta file does not export an object', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await expect(engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'bad-meta')
+			})).to.be.rejectedWith(TypeError, 'Expected template meta export to be an object or function');
+		});
+
+		it('should error if meta file has invalid complete callback', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await expect(engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'bad-meta-complete')
+			})).to.be.rejectedWith(TypeError, 'Expected template meta complete callback to be a function');
+		});
+
+		it('should error if meta file has invalid data', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await expect(engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'bad-meta-data')
+			})).to.be.rejectedWith(TypeError, 'Expected template meta data to be an object');
+		});
+
+		it('should error if meta file has invalid filters', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await expect(engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'bad-meta-filters')
+			})).to.be.rejectedWith(TypeError, 'Expected template meta filters to be an array or set of file patterns');
+		});
+
+		it('should error if meta file has invalid prompts', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await expect(engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'bad-meta-prompts')
+			})).to.be.rejectedWith(TypeError, 'Expected template meta prompts to be an object');
+		});
+
+		it('should error if meta file has invalid prompt descriptor', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await expect(engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'bad-meta-prompt-descriptor')
+			})).to.be.rejectedWith(TypeError, 'Expected meta prompt descriptor for "foo" to be an object');
 		});
 	});
 });

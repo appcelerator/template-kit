@@ -96,7 +96,6 @@ export default class TemplateEngine extends HookEmitter {
 
 				if (globalPackageDir) {
 					// global npm package
-					// note: we assume global packages already have deps installed
 					log(`Found global npm package: ${highlight(globalPackageDir)}`);
 					state.src = globalPackageDir;
 
@@ -123,16 +122,15 @@ export default class TemplateEngine extends HookEmitter {
 			}
 
 			// try to determine meta file
-			if (state.pkg) {
-				let { main } = state.pkg;
-				let metaFile = main && path.resolve(state.src, main);
-				if (isFile(metaFile) || isFile(metaFile = path.join(state.src, 'meta.js'))) {
-					state.metaFile = metaFile;
-				}
+			let metaFile = state.pkg && state.pkg.main && path.resolve(state.src, state.pkg.main);
+			if (isFile(metaFile) || isFile(metaFile = path.join(state.src, 'meta.js'))) {
+				state.metaFile = metaFile;
+				state.filters.add(`!${path.relative(state.src, metaFile)}`);
 			}
 
 			await this.loadMeta(state);
 
+			/* istanbul ignore else */
 			if (state.template) {
 				state.src = path.resolve(state.src, state.template);
 			}
@@ -151,6 +149,7 @@ export default class TemplateEngine extends HookEmitter {
 		} finally {
 			await this.hook('cleanup', async state => {
 				for (const disposable of state.disposables) {
+					/* istanbul ignore else */
 					if (disposable.startsWith(tmp.tmpdir)) {
 						await fs.remove(disposable);
 					}
@@ -173,7 +172,7 @@ export default class TemplateEngine extends HookEmitter {
 			const writeFile = promisify(fs.writeFile);
 
 			// separate positive from negative paths
-			const patterns = [];
+			let patterns = [];
 			const ignore = [];
 			for (const pattern of Array.from(state.filters)) {
 				if (pattern[0] === '!') {
@@ -183,28 +182,40 @@ export default class TemplateEngine extends HookEmitter {
 				}
 			}
 
+			if (!patterns.length) {
+				patterns = [ '**' ];
+			}
+
+			log('Building template file list...');
+			log(patterns);
+
 			// if there's no patterns, then match everything
-			const files = await glob(patterns.length ? patterns : '**', {
+			const files = await glob(patterns, {
 				cwd: state.src,
 				dot: true,
 				ignore
 			});
 
+			await fs.mkdirs(state.dest);
+
 			for (const file of files) {
 				state.srcFile = path.join(state.src, file);
 				state.destFile = path.join(state.dest, this.renderFilename(file, state.data));
-				state.isBinary = await isBinaryFile(state.srcFile);
+
+				if (isDir(state.srcFile)) {
+					log(`Creating directory ${highlight(state.destFile)}`);
+					await fs.mkdirs(state.destFile);
+					continue;
+				}
 
 				await this.hook('copy-file', async state => {
-					log(`${state.isBinary ? 'Copying' : 'Rendering'} ${highlight(state.srcFile)} => ${highlight(path.relative(state.srcFile, state.destFile))}`);
-
-					await fs.mkdirs(path.dirname(state.destFile));
-
-					if (state.isBinary) {
+					if (await isBinaryFile(state.srcFile)) {
 						// copy
+						log(`Copying ${highlight(state.srcFile)} => ${highlight(path.relative(state.srcFile, state.destFile))}`);
 						await copyFile(state.srcFile, state.destFile);
 					} else {
 						// render
+						log(`Copying ${highlight(state.srcFile)} => ${highlight(path.relative(state.srcFile, state.destFile))}`);
 						let contents = await readFile(state.srcFile);
 						contents = await ejs.render(contents.toString(), state.data, {
 							async: true,
@@ -215,7 +226,8 @@ export default class TemplateEngine extends HookEmitter {
 				})(state);
 			}
 
-			state.srcFile = state.destFile = state.isBinary = undefined;
+			delete state.srcFile;
+			delete state.destFile;
 		})(state);
 	}
 
@@ -242,6 +254,7 @@ export default class TemplateEngine extends HookEmitter {
 
 						// try to determine the file extension by the content disposition filename
 						// this is likely the most trustworthy option
+						/* istanbul ignore else */
 						if (!filename) {
 							const cd = headers['content-disposition'];
 							m = cd && cd.match(/filename[^;=\n]*=['"]*(.*?\2|[^'";\n]*)/);
@@ -338,7 +351,7 @@ export default class TemplateEngine extends HookEmitter {
 			})(state, args, { cwd: dir });
 		} catch (e) {
 			const m = e.stderr.match(/^ERROR:\s*(.+)\.?$/m);
-			throw m ? new Error(m[1]) : e;
+			throw m ? new Error(m[1]) : /* istanbul ignore next */ e;
 		}
 	}
 
@@ -397,7 +410,7 @@ export default class TemplateEngine extends HookEmitter {
 			metaFile:    undefined,
 			npmManifest: undefined,
 			pkg:         undefined,
-			prompts:     []
+			prompts:     {}
 		};
 
 		if (!state.src || typeof state.src !== 'string') {
@@ -422,6 +435,7 @@ export default class TemplateEngine extends HookEmitter {
 			throw new Error('Destination already exists');
 		}
 
+		/* istanbul ignore else */
 		if (!state.data) {
 			state.data = {};
 		} else if (typeof state.data !== 'object') {
@@ -450,10 +464,12 @@ export default class TemplateEngine extends HookEmitter {
 		// load the template meta
 		const meta = await this.hook('load-meta', async state => {
 			let meta;
+
 			if (state.metaFile) {
 				log(`Loading metadata: ${highlight(state.metaFile)}`);
 				meta = require(state.metaFile);
 			}
+
 			// if this is an ES6 module, grab the default export
 			if (meta && typeof meta === 'object' && meta.__esModule) {
 				meta = meta.default;
@@ -475,7 +491,7 @@ export default class TemplateEngine extends HookEmitter {
 
 		if (meta.data) {
 			if (typeof meta.data !== 'object') {
-				throw new TypeError('Expected template meta filters to be an array or set of file patterns');
+				throw new TypeError('Expected template meta data to be an object');
 			}
 			state.data = {
 				...meta.data,
@@ -487,15 +503,43 @@ export default class TemplateEngine extends HookEmitter {
 			if (!Array.isArray(meta.filters) && !(meta.filters instanceof Set)) {
 				throw new TypeError('Expected template meta filters to be an array or set of file patterns');
 			}
-			state.filters = new Set([ ...meta.filters ]);
+
+			for (const filter of meta.filters) {
+				let op = filter[0] === '!' ? filter.substring(1) : `!${filter}`;
+				if (state.filters.has(op)) {
+					state.filters.delete(op);
+				}
+				state.filters.add(filter);
+			}
 		}
 
 		if (meta.prompts) {
-			if (!Array.isArray(meta.prompts) || meta.prompts.some(p => !p || typeof p !== 'object')) {
-				throw new TypeError('Expected template meta prompts to be an array of objects');
+			if (typeof meta.prompts !== 'object') {
+				throw new TypeError('Expected template meta prompts to be an object');
 			}
-			state.prompts = meta.prompts;
-			await this.emit('prompt', state);
+
+			const prompts = {};
+
+			// validate the prompt descriptors and copy them into a clean object
+			for (const [ name, descriptor ] of Object.entries(meta.prompts)) {
+				if (!descriptor || typeof descriptor !== 'object') {
+					throw new TypeError(`Expected meta prompt descriptor for "${name}" to be an object`);
+				}
+				prompts[name] = descriptor;
+			}
+
+			// if we have any prompts, then set the state and emit the `prompt` event
+			if (Object.keys(prompts).length) {
+				state.prompts = prompts;
+				await this.emit('prompt', state);
+
+				// populate any default values
+				for (const [ name, descriptor ] of Object.entries(state.prompts)) {
+					if (descriptor.default !== undefined && state.data[name] === undefined) {
+						state.data[name] = descriptor.default;
+					}
+				}
+			}
 		}
 	}
 
@@ -553,6 +597,7 @@ export default class TemplateEngine extends HookEmitter {
 			const gitIgnore = path.join(dir, 'gitignore');
 			const dotGitIgnore = path.join(dir, '.gitignore');
 
+			/* istanbul ignore else */
 			if (isFile(gitIgnore) && !isFile(dotGitIgnore)) {
 				log(`Renaming ${highlight(gitIgnore)} => ${highlight(path.relative(gitIgnore, dotGitIgnore))}`);
 				fs.renameSync(gitIgnore, dotGitIgnore);
@@ -560,6 +605,7 @@ export default class TemplateEngine extends HookEmitter {
 
 			for (const name of fs.readdirSync(dir)) {
 				const subdir = path.join(dir, name);
+				/* istanbul ignore if */
 				if (isDir(subdir)) {
 					walk(subdir);
 				}
@@ -587,7 +633,7 @@ export default class TemplateEngine extends HookEmitter {
 			'--no-audit',
 			'--no-package-lock',
 			'--production',
-			...(Array.isArray(state.npmArgs) ? state.npmArgs : [])
+			...(Array.isArray(state.npmArgs) ? /* istanbul ignore next */ state.npmArgs : [])
 		]);
 
 		const env = {
@@ -603,7 +649,7 @@ export default class TemplateEngine extends HookEmitter {
 				return (await run(cmd, args, opts)).code;
 			})(state, 'npm', Array.from(args), { cwd: state.dest, env });
 		} finally {
-			(code ? warn : log)(`npm install exited (code ${code})`);
+			(code ? /* istanbul ignore next */ warn : log)(`npm install exited (code ${code})`);
 		}
 	}
 

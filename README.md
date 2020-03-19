@@ -75,7 +75,7 @@ following properties:
 | complete | `Function`       | A function to call after the project generation is complete. Useful for displaying post create steps. |
 | data     | `Object`         | Arbitrary data to mix in with the `run()` data and pass into `ejs` when copying a text file. |
 | filters  | `Array.<String>` | An array of file patterns to copy. The patterns follow the gitignore rules. |
-| prompts  | `Array.<Object>` | An array of prompt descriptors that is used to select the template and template data. |
+| prompts  | `Object`         | An array of prompt descriptors that is used to select the template and template data. |
 
 ## API
 
@@ -141,7 +141,6 @@ stages. The contents of the `state` depends on the Source Type.
 | force       | `Boolean`                 | When `true`, overrides the destination if it already exists. |
 | git         | `Boolean`                 | When `true` and `git` executable is found, after the the project is generated, initialize a git repo in the project directory. |
 | gitInfo     | `Object`                  | The parsed git repo information.                             |
-| isBinary    | `Boolean`                 | When copying files, indicates if the file is binary or text. |
 | npmArgs     | `Array.<String>`          | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap. |
 | npmManifest | `Object`                  | The npm package information                                  |
 | prompts     | `Array.<Object>`          | A list of prompt descriptors.                                |
