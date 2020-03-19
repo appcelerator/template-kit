@@ -29,7 +29,7 @@ const { highlight } = snooplogg.styles;
 const archiveRegExp = /[^\\/]+(\.zip|\.tgz|\.tbz2|\.tar\.gz|\.tar\.bz2|(?<!\.tar)\.gz|(?<!\.tar)\.bz2)$/;
 const fileRegExp = /\{\{(\w+?)\}\}/g;
 
-export default class TemplateEngine extends HookEmitter {
+export class TemplateEngine extends HookEmitter {
 	/**
 	 * The list of default `multimatch` patterns.
 	 *
@@ -671,3 +671,5 @@ export default class TemplateEngine extends HookEmitter {
 		});
 	}
 }
+
+export default TemplateEngine;
