@@ -9,9 +9,10 @@
   ],
   "license": "Apache-2.0",
   "keywords": [
+    "project",
     "template",
     "generator",
-    "project"
+    "generate"
   ],
   "scripts": {
     "build": "gulp build",

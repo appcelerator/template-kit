@@ -15,7 +15,8 @@ Library for creating projects from templates.
  * Support for `.zip`, `.gz`, `.bz2`, `.tar`, `tar.gz`, `tar.bz2`, `.tgz`, and `.tbz2` archives
  * Render text files using [`ejs`][ejs] during file copy
  * JavaScript lifecycle hooks
- * Data-driven destination directories and filenames
+ * User-defined copy file inclusion/exclusion filters
+ * Data-driven destination directory and filenames
  * npm dependency installation
  * git repository initialization
 
