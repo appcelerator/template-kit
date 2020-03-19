@@ -1,4 +1,4 @@
-# v1.0.0
+# v1.0.1 (Mar 19, 2020)
 
  * Initial release with support for:
    - Project generation using local template as a directory, archive file, or globally installed
