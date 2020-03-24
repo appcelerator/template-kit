@@ -23,7 +23,7 @@ import { isDir, isFile } from 'appcd-fs';
 import { promisify } from 'util';
 import { run, which } from 'appcd-subprocess';
 
-const { log, warn } = snooplogg('template-kit');
+const { error, log, warn } = snooplogg('template-kit');
 const { highlight } = snooplogg.styles;
 
 const archiveRegExp = /[^\\/]+(\.zip|\.tgz|\.tbz2|\.tar\.gz|\.tar\.bz2|(?<!\.tar)\.gz|(?<!\.tar)\.bz2)$/;
@@ -351,6 +351,7 @@ export class TemplateEngine extends HookEmitter {
 			})(state, args, { cwd: dir });
 		} catch (e) {
 			const m = e.stderr.match(/^ERROR:\s*(.+)\.?$/m);
+			e.stderr.trim().split(/\r?\n/).forEach(line => error(line));
 			throw m ? new Error(m[1]) : /* istanbul ignore next */ e;
 		}
 	}
