@@ -350,6 +350,7 @@ export class TemplateEngine extends HookEmitter {
 		try {
 			state.src = await this.hook('git-clone', async (state, args, opts) => {
 				log(`Cloning repo into ${highlight(opts.cwd)}`);
+				log(process.env);
 				await run(cmd, args, opts);
 				return path.join(dir, gitInfo.project);
 			})(state, args, { cwd: dir });
