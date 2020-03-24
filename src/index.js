@@ -148,10 +148,14 @@ export class TemplateEngine extends HookEmitter {
 			}
 		} finally {
 			await this.hook('cleanup', async state => {
-				for (const disposable of state.disposables) {
+				for (const file of state.disposables) {
 					/* istanbul ignore else */
-					if (disposable.startsWith(tmp.tmpdir)) {
-						await fs.remove(disposable);
+					if (file.startsWith(tmp.tmpdir)) {
+						try {
+							await fs.remove(file);
+						} catch (e) {
+							warn(`Unable to remove temp file: ${highlight(file)}`);
+						}
 					}
 				}
 			})(state);

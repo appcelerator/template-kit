@@ -35,7 +35,7 @@ try {
 }
 
 describe('template-kit', function () {
-	this.timeout(10000);
+	this.timeout(20000);
 	this.slow(5000);
 
 	after(async () => {
