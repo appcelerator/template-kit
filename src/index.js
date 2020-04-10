@@ -154,6 +154,7 @@ export class TemplateEngine extends HookEmitter {
 						try {
 							await fs.remove(file);
 						} catch (e) {
+							/* istanbul ignore next */
 							warn(`Unable to remove temp file: ${highlight(file)}`);
 						}
 					}
@@ -518,6 +519,13 @@ export class TemplateEngine extends HookEmitter {
 			}
 		}
 
+		if (meta.template && state.template === '.') {
+			if (typeof meta.template !== 'string') {
+				throw new TypeError('Expected template meta relative template path to be a non-empty string');
+			}
+			state.template = meta.template;
+		}
+
 		if (meta.prompts) {
 			if (typeof meta.prompts !== 'object') {
 				throw new TypeError('Expected template meta prompts to be an object');
@@ -536,6 +544,13 @@ export class TemplateEngine extends HookEmitter {
 			// if we have any prompts, then set the state and emit the `prompt` event
 			if (Object.keys(prompts).length) {
 				state.prompts = prompts;
+
+				// if there's a template prompt and the template was explicitly set, then override
+				// the default prompt choice
+				if (state.prompts.template && state.template !== '.') {
+					state.prompts.template.default = state.template;
+				}
+
 				await this.emit('prompt', state);
 
 				// populate any default values

@@ -1,3 +1,9 @@
+# v1.1.0 (Apr 10, 2020)
+
+ * feat: Added `template` option to `TemplateEngine()` constructor.
+ * feat: Added `template` property to `meta.js`.
+ * chore: Updated npm dependencies.
+
 # v1.0.1 (Mar 19, 2020)
 
  * Initial release with support for:
