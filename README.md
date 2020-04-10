@@ -2,7 +2,6 @@
 
 [![NPM Version][npm-image]][npm-url]
 [![NPM Downloads][downloads-image]][downloads-url]
-[![Travis CI Build][travis-image]][travis-url]
 [![Deps][david-image]][david-url]
 [![Dev Deps][david-dev-image]][david-dev-url]
 
@@ -538,8 +537,6 @@ in this distribution for more information.
 [npm-url]: https://npmjs.org/package/template-kit
 [downloads-image]: https://img.shields.io/npm/dm/template-kit.svg
 [downloads-url]: https://npmjs.org/package/template-kit
-[travis-image]: https://img.shields.io/travis/appcelerator/template-kit.svg
-[travis-url]: https://travis-ci.org/appcelerator/template-kit
 [david-image]: https://img.shields.io/david/appcelerator/template-kit.svg
 [david-url]: https://david-dm.org/appcelerator/template-kit
 [david-dev-image]: https://img.shields.io/david/dev/appcelerator/template-kit.svg
