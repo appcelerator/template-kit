@@ -734,6 +734,24 @@ describe('template-kit', function () {
 			expect(fs.readFileSync(helloFile).toString()).to.match(/Just wanted to say hello!/);
 		});
 
+		it('should generate template with meta file and template subdirectory', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'good-meta-template')
+			});
+
+			expect(fs.readdirSync(dest)).to.have.members([
+				'.git',
+				'.gitignore',
+				'package.json',
+				'README.md',
+				'index.js'
+			]);
+		});
+
 		it('should error if meta file does not export an object', async () => {
 			const engine = new TemplateEngine();
 			const dest = makeTempName();
@@ -774,6 +792,16 @@ describe('template-kit', function () {
 			})).to.be.rejectedWith(TypeError, 'Expected template meta filters to be an array or set of file patterns');
 		});
 
+		it('should error if meta file has invalid template subdirectory', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await expect(engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'bad-meta-template')
+			})).to.be.rejectedWith(TypeError, 'Expected template meta relative template path to be a non-empty string');
+		});
+
 		it('should error if meta file has invalid prompts', async () => {
 			const engine = new TemplateEngine();
 			const dest = makeTempName();
@@ -792,6 +820,21 @@ describe('template-kit', function () {
 				dest,
 				src: path.join(__dirname, 'fixtures', 'bad-meta-prompt-descriptor')
 			})).to.be.rejectedWith(TypeError, 'Expected meta prompt descriptor for "foo" to be an object');
+		});
+
+		it('should generate template with meta file, prompts, and template subdirectory', async () => {
+			const engine = new TemplateEngine();
+			const dest = makeTempName();
+
+			await engine.run({
+				dest,
+				src: path.join(__dirname, 'fixtures', 'good-meta-template-prompts')
+			});
+
+			expect(fs.readdirSync(dest)).to.have.members([
+				'.git',
+				'index.js'
+			]);
 		});
 	});
 });

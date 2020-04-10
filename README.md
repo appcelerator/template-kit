@@ -51,8 +51,9 @@ import TemplateEngine from 'template-kit';
 
 ### Structure
 
-A template can be an empty directory or a massive collection of files and subdirectories. These
-files can compressed in an archive file (.zip, .tgz, etc).
+A template can be an empty directory or a massive collection of files and subdirectories. All of
+the files in the template can be compressed in a single archive file (.zip, .tgz, etc) for
+distribution.
 
 Templates do _not_ need to be npm packages and they do _not_ need to have a `package.json`. If they
 do, template-kit will happily call `npm install` after generation.
@@ -64,6 +65,12 @@ data that has be injected via a hook.
 
 Directories and filenames may contain a `{{variable}}` sequence which will be replaced with the
 corresponding value in the `data` object.
+
+By default, template-kit will treat the root of the template directory as the actual template.
+However, the template may contain several project templates or place all of the template files in
+a single subdirectory. The relative project template path is defined by setting the `template`
+property in the `meta.js` file. If there are multiple project templates, then you can present them
+by using the prompts mechanism.
 
 ### Metadata
 
@@ -77,6 +84,7 @@ following properties:
 | data     | `Object`         | Arbitrary data to mix in with the `run()` data and pass into `ejs` when copying a text file. |
 | filters  | `Array.<String>` | An array of file patterns to copy. The patterns follow the gitignore rules. |
 | prompts  | `Object`         | An array of prompt descriptors that is used to select the template and template data. |
+| template | `String`         | Relative path to the template files. Defaults to `'.'` |
 
 ## API
 
@@ -116,16 +124,17 @@ Resolves a template source, installs the template, and manages the install lifec
 
 Builds a project based on the specified template and options.
 
-| Param             | Type                      | Description     |
-| ----------------- | ------------------------- | --------------- |
-| opts              | `Object`                  | Various options |
-| [opts.data]       | `Object`                  | A data object that is passed into `ejs` when copying template files. |
-| opts.dest         | `String`                  | The destination directory to create the project in. |
-| [opts.filters]    | `Set` \| `Array.<String>` | A list of file patterns to pass into `micromatch` when copying files. |
-| [opts.force]      | `Boolean`                 | When `true`, overrides the destination if it already exists. |
-| [opts.git=true]   | `Boolean`                 | When `true` and `git` executable is found, after the the project is generated, initialize a git repo in the project directory. |
-| [opts.npmArgs]    | `Array.<String>`          | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap. |
-| opts.src          | `String`                  | The path to a directory, archive file, globally installed npm package, archive URL, npm package name, or git repo. |
+| Param               | Type                      | Description     |
+| ------------------- | ------------------------- | --------------- |
+| opts                | `Object`                  | Various options |
+| [opts.data]         | `Object`                  | A data object that is passed into `ejs` when copying template files. |
+| opts.dest           | `String`                  | The destination directory to create the project in. |
+| [opts.filters]      | `Set` \| `Array.<String>` | A list of file patterns to pass into `micromatch` when copying files. |
+| [opts.force]        | `Boolean`                 | When `true`, overrides the destination if it already exists. |
+| [opts.git=true]     | `Boolean`                 | When `true` and `git` executable is found, after the the project is generated, initialize a git repo in the project directory. |
+| [opts.npmArgs]      | `Array.<String>`          | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap. |
+| opts.src            | `String`                  | The path to a directory, archive file, globally installed npm package, archive URL, npm package name, or git repo. |
+| [opts.template='.'] | `String`                  | Relative path to the directory containing the template files. This value overrides the default template from the `meta.js`, but not the `template` value returned from prompting. |
 
 ##### Run State
 
@@ -147,6 +156,7 @@ stages. The contents of the `state` depends on the Source Type.
 | prompts     | `Array.<Object>`          | A list of prompt descriptors.                                |
 | src         | `String`                  | The path to a directory, archive file, globally installed npm package, archive URL, npm package name, or git repo. |
 | srcFile     | `String`                  | When copying files, this is the source file path.            |
+| template    | `String`                  | Relative path to the directory containing the template files. Defaults to `'.'` |
 
 ### Events
 
