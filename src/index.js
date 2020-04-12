@@ -27,6 +27,7 @@ const { error, log, warn } = snooplogg('template-kit');
 const { highlight } = snooplogg.styles;
 
 const archiveRegExp = /[^\\/]+(\.zip|\.tgz|\.tbz2|\.tar\.gz|\.tar\.bz2|(?<!\.tar)\.gz|(?<!\.tar)\.bz2)$/;
+const dotIgnoreRegExp = /(?<!\w)(?<!\.)(gitignore|npmignore)$/;
 const fileRegExp = /\{\{(\w+?)\}\}/g;
 
 export class TemplateEngine extends HookEmitter {
@@ -204,8 +205,9 @@ export class TemplateEngine extends HookEmitter {
 			await fs.mkdirs(state.dest);
 
 			for (const file of files) {
+				const destFilename = this.renderFilename(file, state.data).replace(dotIgnoreRegExp, '.$1');
 				state.srcFile = path.join(state.src, file);
-				state.destFile = path.join(state.dest, this.renderFilename(file, state.data));
+				state.destFile = path.join(state.dest, destFilename);
 
 				if (isDir(state.srcFile)) {
 					log(`Creating directory ${highlight(state.destFile)}`);
@@ -614,20 +616,15 @@ export class TemplateEngine extends HookEmitter {
 		// can do about it (https://github.com/npm/pacote/issues/33)
 		// as a workaround, if we find any files named `gitignore`, rename them to `.gitignore`
 		const walk = dir => {
-			const gitIgnore = path.join(dir, 'gitignore');
-			const dotGitIgnore = path.join(dir, '.gitignore');
-
-			/* istanbul ignore else */
-			if (isFile(gitIgnore) && !isFile(dotGitIgnore)) {
-				log(`Renaming ${highlight(gitIgnore)} => ${highlight(path.relative(gitIgnore, dotGitIgnore))}`);
-				fs.renameSync(gitIgnore, dotGitIgnore);
-			}
-
-			for (const name of fs.readdirSync(dir)) {
-				const subdir = path.join(dir, name);
+			for (let name of fs.readdirSync(dir)) {
+				const file = path.join(dir, name);
 				/* istanbul ignore if */
-				if (isDir(subdir)) {
-					walk(subdir);
+				if (isDir(file)) {
+					walk(file);
+				} else if (name === 'gitignore' || name === 'npmignore') {
+					const dest = path.join(dir, `.${name}`);
+					log(`Renaming ${highlight(file)} => ${highlight(path.relative(file, dest))}`);
+					fs.renameSync(file, dest);
 				}
 			}
 		};

@@ -1,3 +1,7 @@
+# v1.1.2 (Apr 12, 2020)
+
+ * fix: Rename `gitignore` and `npmignore` to dot files when copying local files.
+
 # v1.1.1 (Apr 12, 2020)
 
  * fix: Install all dependencies, not just production dependencies.

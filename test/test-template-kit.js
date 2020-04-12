@@ -171,7 +171,7 @@ describe('template-kit', function () {
 			expect(fs.readdirSync(dest)).to.have.members([
 				'.git',
 				'README.md',
-				'gitignore',
+				'.gitignore',
 				'package.json'
 			]);
 		});
@@ -189,7 +189,7 @@ describe('template-kit', function () {
 				'.git',
 				'README.md',
 				'foo.txt',
-				'gitignore',
+				'.gitignore',
 				'package.json'
 			]);
 		});
@@ -206,7 +206,7 @@ describe('template-kit', function () {
 			expect(fs.readdirSync(dest)).to.have.members([
 				'.git',
 				'README.md',
-				'gitignore',
+				'.gitignore',
 				'package.json'
 			]);
 		});
@@ -545,7 +545,7 @@ describe('template-kit', function () {
 			expect(fs.readdirSync(dest)).to.have.members([
 				'.git',
 				'README.md',
-				'gitignore',
+				'.gitignore',
 				'package.json'
 			]);
 
