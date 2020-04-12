@@ -1,3 +1,7 @@
+# v1.1.1 (Apr 12, 2020)
+
+ * fix: Install all dependencies, not just production dependencies.
+
 # v1.1.0 (Apr 10, 2020)
 
  * feat: Added `template` option to `TemplateEngine()` constructor.

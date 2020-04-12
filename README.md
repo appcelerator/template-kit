@@ -131,7 +131,7 @@ Builds a project based on the specified template and options.
 | [opts.filters]      | `Set` \| `Array.<String>` | A list of file patterns to pass into `micromatch` when copying files. |
 | [opts.force]        | `Boolean`                 | When `true`, overrides the destination if it already exists. |
 | [opts.git=true]     | `Boolean`                 | When `true` and `git` executable is found, after the the project is generated, initialize a git repo in the project directory. |
-| [opts.npmArgs]      | `Array.<String>`          | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap. |
+| [opts.npmArgs]      | `Array.<String>`          | An array of additional parameters to pass into npm. Useful if you need to add extra arguments for things such as skipping shrinkwrap or production only. |
 | opts.src            | `String`                  | The path to a directory, archive file, globally installed npm package, archive URL, npm package name, or git repo. |
 | [opts.template='.'] | `String`                  | Relative path to the directory containing the template files. This value overrides the default template from the `meta.js`, but not the `template` value returned from prompting. |
 

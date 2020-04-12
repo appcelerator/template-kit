@@ -652,7 +652,6 @@ export class TemplateEngine extends HookEmitter {
 			'install',
 			'--no-audit',
 			'--no-package-lock',
-			'--production',
 			...(Array.isArray(state.npmArgs) ? /* istanbul ignore next */ state.npmArgs : [])
 		]);
 
