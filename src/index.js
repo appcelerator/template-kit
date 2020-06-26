@@ -249,7 +249,7 @@ export class TemplateEngine extends HookEmitter {
 		await this.hook('download', async state => {
 			return new Promise((resolve, reject) => {
 				log(`Downloading ${highlight(state.src)}`);
-				got.stream(state.src)
+				const stream = got.stream(state.src)
 					.on('response', response => {
 						const { headers } = response;
 						const length = headers['content-length'];
@@ -290,11 +290,12 @@ export class TemplateEngine extends HookEmitter {
 						log(`Writing file to ${highlight(state.src)} (${length || '?'} bytes)`);
 
 						const out = fs.createWriteStream(state.src);
+						out.on('error', reject);
 						out.on('close', () => {
 							log(`Wrote ${fs.statSync(state.src).size} bytes`);
 							resolve(state.src);
 						});
-						response.pipe(out);
+						stream.pipe(out);
 					})
 					.on('error', reject);
 			});

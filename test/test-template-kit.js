@@ -3,10 +3,14 @@
 import fs from 'fs-extra';
 import http from 'http';
 import path from 'path';
+import snooplogg from 'snooplogg';
 import TemplateEngine from '../dist/index';
 import tmp from 'tmp';
 
 import { execSync } from 'child_process';
+
+const { log } = snooplogg('test:template-kit');
+const { highlight } = snooplogg.styles;
 
 const tmpDir = tmp.dirSync({
 	mode: '755',
@@ -911,6 +915,7 @@ async function createServer() {
 						'Content-Type': 'application/zip',
 						'Content-Length': fs.statSync(file).size
 					});
+					log(`Sending file: ${highlight(file)}`);
 					fs.createReadStream(file).pipe(res);
 					break;
 				}
@@ -921,13 +926,18 @@ async function createServer() {
 			}
 		}).on('connection', conn => {
 			const key = conn.remoteAddress + ':' + conn.remotePort;
+			log(`Received incoming connection from ${highlight(key)}`);
 			connections[key] = conn;
 			conn.on('close', () => {
 				delete connections[key];
 			});
 		}).listen(1337, () => {
+			log('Local HTTP server listening on port 1337');
+
 			closeHttpServer = async () => {
-				for (const key of Object.keys(connections)) {
+				const conns = Object.keys(connections);
+				log(`Stopping local HTTP server (${conns.length} connection${conns !== 1 ? 's' : ''})`);
+				for (const key of conns) {
 					connections[key].destroy();
 					delete connections[key];
 				}
