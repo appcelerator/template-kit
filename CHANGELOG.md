@@ -1,6 +1,9 @@
-# v1.1.2 (Apr 12, 2020)
+# v2.0.0 (Jun 26, 2020)
 
+ * BREAKING CHANGE: Dropped support for Node 10.12.0 and older. Please use 10.13.0 LTS or newer.
  * fix: Rename `gitignore` and `npmignore` to dot files when copying local files.
+ * fix: Fixed incorrect use of `got` library when streaming downloaded files to disk.
+ * chore: Updated npm dependencies.
 
 # v1.1.1 (Apr 12, 2020)
 
