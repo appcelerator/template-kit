@@ -1,4 +1,4 @@
-# v2.1.0
+# v2.1.0 (Oct 2, 2020)
 
  * feat: Added HTTP proxy support.
  * chore: Updated npm dependencies.
