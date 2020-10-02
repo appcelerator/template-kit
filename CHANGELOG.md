@@ -1,3 +1,8 @@
+# v2.1.0
+
+ * feat: Added HTTP proxy support.
+ * chore: Updated npm dependencies.
+
 # v2.0.0 (Jun 26, 2020)
 
  * BREAKING CHANGE: Dropped support for Node 10.12.0 and older. Please use 10.13.0 LTS or newer.

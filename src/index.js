@@ -6,7 +6,6 @@ if (!Error.prepareStackTrace) {
 import ejs from 'ejs';
 import fs from 'fs-extra';
 import globalModules from 'global-modules';
-import got from 'got';
 import HookEmitter from 'hook-emitter';
 import hostedGitInfo from 'hosted-git-info';
 import inly from 'inly';
@@ -15,6 +14,7 @@ import path from 'path';
 import snooplogg from 'snooplogg';
 import tmp from 'tmp';
 import validatePackageName from 'validate-npm-package-name';
+import * as request from '@axway/amplify-request';
 
 import { expandPath } from 'appcd-path';
 import { glob } from 'glob-gitignore';
@@ -41,6 +41,24 @@ export class TemplateEngine extends HookEmitter {
 		'!.git',
 		'!node_modules'
 	];
+
+	/**
+	 * Initializes the template engine options.
+	 *
+	 * @param {Object} [opts] - Various options.
+	 * @param {Object} [opts.requestOptions] - Options to pass into the `got` HTTP client.
+	 * Supported properties are `caFile`, `certFile`, `keyFile`, `proxy`, and `strictSSL`.
+	 * @access public
+	 */
+	constructor(opts = {}) {
+		if (opts && typeof opts !== 'object') {
+			throw new TypeError('Expected options to be an object');
+		}
+
+		super();
+
+		this.requestOptions = opts?.requestOptions || {};
+	}
 
 	/**
 	 * Builds a project based on the specified template and options.
@@ -108,7 +126,10 @@ export class TemplateEngine extends HookEmitter {
 							throw new Error('Definitely not a valid npm package name');
 						}
 
-						state.npmManifest = await pacote.manifest(state.src, { fullMetadata: true });
+						state.npmManifest = await pacote.manifest(state.src, request.options({
+							defaults: this.requestOptions,
+							fullMetadata: true
+						}));
 					} catch (e) {
 						throw new Error('Unable to determine template source');
 					}
@@ -249,6 +270,7 @@ export class TemplateEngine extends HookEmitter {
 		await this.hook('download', async state => {
 			return new Promise((resolve, reject) => {
 				log(`Downloading ${highlight(state.src)}`);
+				const got = request.init({ defaults: this.requestOptions });
 				const stream = got.stream(state.src)
 					.on('response', response => {
 						const { headers } = response;
@@ -610,7 +632,11 @@ export class TemplateEngine extends HookEmitter {
 
 		await this.hook('npm-download', async state => {
 			log(`Downloading ${highlight(`${state.npmManifest.name}@${state.npmManifest.version}`)}`);
-			await pacote.extract(`${state.npmManifest.name}@${state.npmManifest.version}`, state.src);
+			await pacote.extract(
+				`${state.npmManifest.name}@${state.npmManifest.version}`,
+				state.src,
+				request.options({ defaults: this.requestOptions })
+			);
 		})(state);
 
 		// pacote has a "feature" where .gitignore is renamed to .npmignore and there's nothing we

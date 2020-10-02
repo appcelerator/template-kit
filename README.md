@@ -91,7 +91,7 @@ following properties:
 
 Resolves a template source, installs the template, and manages the install lifecycle.
 
- * `new TemplateEngine()`
+ * [`new TemplateEngine(opts)`](#TemplateEngine+constructor)
    * _methods_
      * [`.run(opts)`](#TemplateEngine+run)
    * _inherited from [`HookEmitter`](https://www.npmjs.com/package/hook-emitter)_ ➚
@@ -114,6 +114,24 @@ Resolves a template source, installs the template, and manages the install lifec
      * [`#npm-install`](#TemplateEngine+event+npm-install)
      * [`#git-init`](#TemplateEngine+event+git-init)
      * [`#cleanup`](#TemplateEngine+event+cleanup)
+
+### Constructor
+
+<a name="TemplateEngine+constructor"></a>
+
+#### `new TemplateEngine(opts)`
+
+Initializes the template engine.
+
+| Param                           | Type      | Description                                             |
+| ------------------------------- | --------- | ------------------------------------------------------- |
+| [opts]                          | `Object`  | Various options                                         |
+| [opts.requestOptions]           | `Object`  | `got` HTTP client options and proxy/security settings below. |
+| [opts.requestOptions.caFile]    | `String`  | A path to a PEM-formatted certificate authority bundle. |
+| [opts.requestOptions.certFile]  | `String`  | A path to a client cert file used for authentication.   |
+| [opts.requestOptions.keyFile]   | `String`  | A path to a private key file used for authentication.   |
+| [opts.requestOptions.proxy]     | `String`  | A proxy server URL. Can be `http` or `https`.           |
+| [opts.requestOptions.strictSSL] | `Boolean` | When falsey, disables TLS/SSL certificate validation for both `https` requests and `https` proxy servers. |
 
 ### Methods
 
