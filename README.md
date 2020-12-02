@@ -123,14 +123,14 @@ Resolves a template source, installs the template, and manages the install lifec
 
 Initializes the template engine.
 
-| Param                           | Type      | Description                                             |
-| ------------------------------- | --------- | ------------------------------------------------------- |
-| [opts]                          | `Object`  | Various options                                         |
+| Param                           | Type      | Description                                                  |
+| ------------------------------- | --------- | ------------------------------------------------------------ |
+| [opts]                          | `Object`  | Various options.                                             |
 | [opts.requestOptions]           | `Object`  | `got` HTTP client options and proxy/security settings below. |
-| [opts.requestOptions.caFile]    | `String`  | A path to a PEM-formatted certificate authority bundle. |
-| [opts.requestOptions.certFile]  | `String`  | A path to a client cert file used for authentication.   |
-| [opts.requestOptions.keyFile]   | `String`  | A path to a private key file used for authentication.   |
-| [opts.requestOptions.proxy]     | `String`  | A proxy server URL. Can be `http` or `https`.           |
+| [opts.requestOptions.caFile]    | `String`  | A path to a PEM-formatted certificate authority bundle.      |
+| [opts.requestOptions.certFile]  | `String`  | A path to a client cert file used for authentication.        |
+| [opts.requestOptions.keyFile]   | `String`  | A path to a private key file used for authentication.        |
+| [opts.requestOptions.proxy]     | `String`  | A proxy server URL. Can be `http` or `https`.                |
 | [opts.requestOptions.strictSSL] | `Boolean` | When falsey, disables TLS/SSL certificate validation for both `https` requests and `https` proxy servers. |
 
 ### Methods
